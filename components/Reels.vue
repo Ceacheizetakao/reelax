@@ -120,7 +120,12 @@ const whatsappUser = (usuario) => {
   height: 100dvh;
   overflow: hidden;
   position: relative;
+
+  /* 👇 Evita que se recargue al hacer swipe hacia abajo */
+  overscroll-behavior-y: contain;
+  touch-action: none;
 }
+
 .reels-wrapper {
   height: 100%;
   width: 100%;
