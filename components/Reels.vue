@@ -63,7 +63,7 @@ const startY = ref(0)
 const deltaY = ref(0)
 const translateY = ref(0)
 const isDragging = ref(false)
-isAnimating = ref(false)
+const isAnimating = ref(false)
 
 const onTouchStart = (e) => startDrag(e.touches[0].clientY)
 const onTouchMove = (e) => drag(e.touches[0].clientY)
