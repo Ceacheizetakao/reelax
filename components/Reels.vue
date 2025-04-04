@@ -1,163 +1,141 @@
 <template>
+  <div class="reels-container"
+       @touchstart="onTouchStart"
+       @touchmove="onTouchMove"
+       @touchend="onTouchEnd"
+       @mousedown="onMouseDown"
+       @mousemove="onMouseMove"
+       @mouseup="onMouseUp"
+       @mouseleave="onMouseUp">
+
     <div
-      class="reels-container"
-      @touchstart="onTouchStart"
-      @touchend="onTouchEnd"
-      @mousedown="onMouseDown"
-      @mouseup="onMouseUp"
+      class="reels-wrapper"
+      :style="{
+        transform: `translateY(${translateY}px)`,
+        transition: isAnimating ? 'transform 0.3s ease' : 'none'
+      }"
     >
       <ReelItem
-        v-for="(video, i) in visibleVideos"
+        v-for="(video, i) in videos"
         :key="video.id"
-        :index="i + currentIndex - 1"
+        :index="i"
         :currentIndex="currentIndex"
         :video="video"
-        :muted="muted[i + currentIndex - 1]"
-        :progress="progress[i + currentIndex - 1]"
-        @toggle-mute="toggleMute(i + currentIndex - 1)"
-        @progress-update="updateProgress(i + currentIndex - 1, $event)"
-        @toggle-like="toggleLike(i + currentIndex - 1)"
+        :muted="muted[i]"
+        :progress="progress[i]"
+        @toggle-mute="toggleMute(i)"
+        @progress-update="updateProgress(i, $event)"
+        @toggle-like="toggleLike(i)"
         @call="callUser(video.usuario)"
         @whatsapp="whatsappUser(video.usuario)"
       />
     </div>
-  </template>
-  
-  <script setup>
-  import { ref, computed } from 'vue'
-  import ReelItem from './ReelItem.vue'
-  
-  // Lista completa de reels (videos + uno de fotos)
-  const originalVideos = [
-    {
-      id: 1,
-      tipo: 'video',
-      video_url: '/videos/v1.mp4',
-      descripcion: 'Reel video 1',
-      usuario: 'usuario1'
-    },
-    {
-      id: 2,
-      tipo: 'video',
-      video_url: '/videos/v2.mp4',
-      descripcion: 'Reel video 2',
-      usuario: 'usuario2'
-    },
-    {
-      id: 3,
-      tipo: 'video',
-      video_url: '/videos/v3.mp4',
-      descripcion: 'Reel video 3',
-      usuario: 'usuario3'
-    },
-    {
-      id: 4,
-      tipo: 'video',
-      video_url: '/videos/v4.mp4',
-      descripcion: 'Reel video 4',
-      usuario: 'usuario4'
-    },
-    {
-      id: 5,
-      tipo: 'video',
-      video_url: '/videos/v5.mp4',
-      descripcion: 'Reel video 5',
-      usuario: 'usuario5'
-    },
-    {
-      id: 6,
-      tipo: 'video',
-      video_url: '/videos/v6.mp4',
-      descripcion: 'Reel video 6',
-      usuario: 'usuario6'
-    },
-    {
-      id: 7,
-      tipo: 'fotos',
-      imagenes: [
-        '/videos/fotos/foto1.jpg',
-        '/videos/fotos/foto2.jpg',
-        '/videos/fotos/foto3.jpg',
-        '/videos/fotos/foto4.jpg',
-        '/videos/fotos/foto5.jpg'
-      ],
-      descripcion: 'Reel de fotos',
-      usuario: 'usuario_fotos'
-    }
-  ]
-  
-  // Mezclar orden de los reels
-  function shuffleArray(array) {
-    const shuffled = [...array]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-    }
-    return shuffled
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import ReelItem from './ReelItem.vue'
+
+const originalVideos = [
+  { id: 1, tipo: 'video', video_url: '/videos/v1.mp4', descripcion: 'Reel 1', usuario: 'usuario1' },
+  { id: 2, tipo: 'video', video_url: '/videos/v2.mp4', descripcion: 'Reel 2', usuario: 'usuario2' },
+  { id: 3, tipo: 'fotos', imagenes: ['/videos/fotos/foto1.jpg', '/videos/fotos/foto2.jpg'], descripcion: 'Fotos', usuario: 'usuario_fotos' },
+  { id: 4, tipo: 'video', video_url: '/videos/v3.mp4', descripcion: 'Reel 3', usuario: 'usuario3' }
+]
+
+function shuffleArray(array) {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
-  
-  const videos = ref(shuffleArray(originalVideos))
-  const currentIndex = ref(0)
-  const muted = ref(videos.value.map(() => true))
-  const progress = ref(videos.value.map(() => 0))
-  const liked = ref(videos.value.map(() => false))
-  
-  const visibleVideos = computed(() =>
-    videos.value.slice(
-      Math.max(0, currentIndex.value - 1),
-      Math.min(videos.value.length, currentIndex.value + 2)
-    )
-  )
-  
-  let touchStartY = 0
-  let mouseStartY = 0
-  
-  const onTouchStart = (e) => {
-    touchStartY = e.touches[0].clientY
+  return shuffled
+}
+
+const videos = ref(shuffleArray(originalVideos))
+const currentIndex = ref(0)
+const muted = ref(videos.value.map(() => true))
+const progress = ref(videos.value.map(() => 0))
+
+// --- Drag State ---
+const startY = ref(0)
+const deltaY = ref(0)
+const translateY = ref(0)
+const isDragging = ref(false)
+isAnimating = ref(false)
+
+const onTouchStart = (e) => startDrag(e.touches[0].clientY)
+const onTouchMove = (e) => drag(e.touches[0].clientY)
+const onTouchEnd = () => endDrag()
+
+const onMouseDown = (e) => startDrag(e.clientY)
+const onMouseMove = (e) => { if (isDragging.value) drag(e.clientY) }
+const onMouseUp = () => { if (isDragging.value) endDrag() }
+
+function startDrag(y) {
+  startY.value = y
+  deltaY.value = 0
+  isDragging.value = true
+  isAnimating.value = false
+}
+
+function drag(currentY) {
+  deltaY.value = currentY - startY.value
+  translateY.value = deltaY.value
+}
+
+function endDrag() {
+  isDragging.value = false
+  isAnimating.value = true
+  const threshold = 100
+  if (deltaY.value < -threshold && currentIndex.value < videos.value.length - 1) {
+    currentIndex.value++
+  } else if (deltaY.value > threshold && currentIndex.value > 0) {
+    currentIndex.value--
   }
-  const onTouchEnd = (e) => {
-    const deltaY = e.changedTouches[0].clientY - touchStartY
-    handleSwipe(deltaY)
-  }
-  const onMouseDown = (e) => {
-    mouseStartY = e.clientY
-  }
-  const onMouseUp = (e) => {
-    const deltaY = e.clientY - mouseStartY
-    handleSwipe(deltaY)
-  }
-  const handleSwipe = (deltaY) => {
-    const threshold = 50
-    if (deltaY < -threshold && currentIndex.value < videos.value.length - 1) {
-      currentIndex.value++
-    } else if (deltaY > threshold && currentIndex.value > 0) {
-      currentIndex.value--
-    }
-  }
-  
-  const toggleMute = (index) => () => {
-    muted.value[index] = !muted.value[index]
-  }
-  const updateProgress = (index, value) => {
-    progress.value[index] = value
-  }
-  const toggleLike = (index) => {
-    liked.value[index] = !liked.value[index]
-  }
-  const callUser = (usuario) => {
-    alert(`Llamando a ${usuario}...`)
-  }
-  const whatsappUser = (usuario) => {
-    alert(`Abriendo WhatsApp con ${usuario}...`)
-  }
-  </script>
-  
-  <style scoped>
-  .reels-container {
-    height: 100vh;
-    width: 100%;
-    overflow: hidden;
-    position: relative;
-  }
-  </style>
-  
+  translateY.value = 0
+  setTimeout(() => (isAnimating.value = false), 300)
+}
+
+const toggleMute = (index) => () => {
+  muted.value[index] = !muted.value[index]
+}
+const updateProgress = (index, value) => {
+  progress.value[index] = value
+}
+const toggleLike = (index) => {
+  console.log('Like', index)
+}
+const callUser = (usuario) => {
+  alert(`Llamando a ${usuario}`)
+}
+const whatsappUser = (usuario) => {
+  alert(`Abriendo WhatsApp con ${usuario}`)
+}
+</script>
+
+<style scoped>
+.reels-container {
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+}
+.reels-wrapper {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+</style>
+
+<!--
+💡 Este archivo ya está preparado para reemplazar el sistema de drag manual por GSAP Draggable.
+
+Donde dice:
+  translateY.value = ...
+  transition: transform 0.3s ease
+
+Puedes reemplazar por:
+  gsap.to(..., { y: ..., ease: 'power3.out' })
+  Draggable.create(...) para arrastre real con snapping, inertia, etc.
+-->
